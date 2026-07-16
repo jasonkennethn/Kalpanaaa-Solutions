@@ -1,24 +1,100 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import styles from "./page.module.css";
 
+/* ─── Animated Counter Hook ─── */
+function useCountUp(target: number, duration = 2000, trigger = true) {
+  const [value, setValue] = useState(0);
+  const frameRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!trigger) return;
+    const start = performance.now();
+    const step = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 4); // ease-out quart
+      setValue(Math.round(eased * target));
+      if (progress < 1) frameRef.current = requestAnimationFrame(step);
+    };
+    frameRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [target, duration, trigger]);
+
+  return value;
+}
+
+/* ─── Scroll Reveal Hook ─── */
+function useScrollReveal() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
+      { threshold: 0.15 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, visible };
+}
+
 export default function Home() {
   const rotatingWords = ["Growth", "Scale", "Speed", "Security", "Stability"];
   const [wordIndex, setWordIndex] = useState(0);
-
-  // FAQ state
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [chartAnimated, setChartAnimated] = useState(false);
 
+  // Scroll reveal refs
+  const metricsReveal = useScrollReveal();
+  const dashboardReveal = useScrollReveal();
+  const servicesReveal = useScrollReveal();
+  const whyReveal = useScrollReveal();
+  const productsReveal = useScrollReveal();
+  const faqReveal = useScrollReveal();
+
+  // Animated counter values
+  const projectsCount = useCountUp(150, 2000, metricsReveal.visible);
+  const clientsCount = useCountUp(85, 2000, metricsReveal.visible);
+  const uptimeCount = useCountUp(99, 1800, metricsReveal.visible);
+  const deploymentsCount = useCountUp(2400, 2500, metricsReveal.visible);
+
+  // Rotating hero words
   useEffect(() => {
     const timer = setInterval(() => {
       setWordIndex((prev) => (prev + 1) % rotatingWords.length);
     }, 2800);
     return () => clearInterval(timer);
   }, []);
+
+  // Welcome tooltip: show once on first visit, auto-dismiss after 5s
+  useEffect(() => {
+    const seen = sessionStorage.getItem("kalpanaaa_tooltip_seen");
+    if (!seen) {
+      const delay = setTimeout(() => {
+        setShowTooltip(true);
+        sessionStorage.setItem("kalpanaaa_tooltip_seen", "1");
+      }, 1200);
+      const hide = setTimeout(() => setShowTooltip(false), 6200);
+      return () => { clearTimeout(delay); clearTimeout(hide); };
+    }
+  }, []);
+
+  // Trigger chart bar animation when dashboard mockup scrolls into view
+  useEffect(() => {
+    if (dashboardReveal.visible) {
+      const t = setTimeout(() => setChartAnimated(true), 300);
+      return () => clearTimeout(t);
+    }
+  }, [dashboardReveal.visible]);
 
   const trustedCompanies = [
     { name: "Acme Corp", logo: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polygon points="6 2 18 2 22 8 12 22 2 8 6 2"></polygon></svg> },
@@ -67,6 +143,18 @@ export default function Home() {
     }
   ];
 
+  // Chart bar data for the dashboard mockup
+  const chartBars = [
+    { label: "Jan", height: 45, color: "rgba(79, 70, 229, 0.6)" },
+    { label: "Feb", height: 62, color: "rgba(79, 70, 229, 0.7)" },
+    { label: "Mar", height: 38, color: "rgba(79, 70, 229, 0.5)" },
+    { label: "Apr", height: 78, color: "rgba(79, 70, 229, 0.8)" },
+    { label: "May", height: 55, color: "rgba(79, 70, 229, 0.65)" },
+    { label: "Jun", height: 90, color: "rgba(79, 70, 229, 0.85)" },
+    { label: "Jul", height: 72, color: "rgba(8, 145, 178, 0.7)" },
+    { label: "Aug", height: 95, color: "linear-gradient(180deg, #4f46e5, #0891b2)" },
+  ];
+
   return (
     <div style={{ position: "relative", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Background glowing decorations */}
@@ -74,6 +162,13 @@ export default function Home() {
       <div className="glow-orb glow-orb-accent" style={{ bottom: "20%", right: "15%" }}></div>
 
       <Header />
+
+      {/* ─── Welcome Tooltip (appears once, fades over 5s) ─── */}
+      {showTooltip && (
+        <div className={styles.welcomeTooltip}>
+          <span style={{ fontWeight: 700, color: "var(--color-primary)" }}>✨ Kalpanaaa AI</span> is ready to help. Ask about our services, team, or products anytime!
+        </div>
+      )}
 
       {/* Hero Section */}
       <main className={styles.main} style={{ paddingTop: "150px", paddingBottom: "40px", flexDirection: "column" }}>
@@ -100,6 +195,107 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ─── Hero Dashboard Mockup (Browser Frame + Charts) ─── */}
+        <section
+          ref={dashboardReveal.ref}
+          className={`${styles.scrollReveal} ${dashboardReveal.visible ? styles.scrollRevealVisible : ""}`}
+          style={{ width: "90%", maxWidth: "960px", zIndex: 10, marginBottom: "80px" }}
+        >
+          <div className={styles.heroDashboardMockup}>
+            {/* Browser Chrome Bar */}
+            <div className={styles.browserBar}>
+              <span className={styles.browserDot} style={{ background: "#ff5f57" }}></span>
+              <span className={styles.browserDot} style={{ background: "#febc2e" }}></span>
+              <span className={styles.browserDot} style={{ background: "#28c840" }}></span>
+              <span className={styles.browserUrlBar}>kalpanaaa.com/dashboard</span>
+            </div>
+            {/* Dashboard Interior */}
+            <div className={styles.dashboardContent}>
+              {/* Left: Mini Stats */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ marginBottom: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                    <span className={styles.pulseRing}></span>
+                    <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Live Analytics</span>
+                  </div>
+                  <h3 style={{ fontSize: "18px", fontWeight: 700, margin: 0 }}>Performance Overview</h3>
+                </div>
+                <div className={styles.miniStatsGrid}>
+                  <div className={styles.miniStat}>
+                    <div className={styles.miniStatValue}>99.9%</div>
+                    <div className={styles.miniStatLabel}>Uptime</div>
+                  </div>
+                  <div className={styles.miniStat}>
+                    <div className={styles.miniStatValue}>2.4k</div>
+                    <div className={styles.miniStatLabel}>Deploys</div>
+                  </div>
+                  <div className={styles.miniStat}>
+                    <div className={styles.miniStatValue}>150+</div>
+                    <div className={styles.miniStatLabel}>Projects</div>
+                  </div>
+                  <div className={styles.miniStat}>
+                    <div className={styles.miniStatValue}>85</div>
+                    <div className={styles.miniStatLabel}>Clients</div>
+                  </div>
+                </div>
+                {/* Mini Sparkline */}
+                <div style={{ background: "rgba(248, 250, 252, 0.8)", borderRadius: "12px", padding: "14px", border: "1px solid rgba(0,0,0,0.04)" }}>
+                  <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>Revenue Trend</div>
+                  <svg viewBox="0 0 200 50" width="100%" height="50" style={{ display: "block" }}>
+                    <defs>
+                      <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="rgba(79,70,229,0.2)" />
+                        <stop offset="100%" stopColor="rgba(79,70,229,0)" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M0,40 Q20,35 40,30 T80,22 T120,18 T160,10 T200,5" fill="none" stroke="#4f46e5" strokeWidth="2" className={styles.sparklinePath} />
+                    <path d="M0,40 Q20,35 40,30 T80,22 T120,18 T160,10 T200,5 L200,50 L0,50 Z" fill="url(#sparkGrad)" opacity="0.5" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Right: Animated Bar Chart */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                  <div>
+                    <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Monthly Deployments</div>
+                    <div style={{ fontSize: "24px", fontWeight: 800, color: "var(--color-text-primary)", lineHeight: 1 }}>2,847</div>
+                  </div>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#10b981", background: "rgba(16, 185, 129, 0.1)", padding: "4px 10px", borderRadius: "20px" }}>↑ 24.3%</span>
+                </div>
+                <div className={styles.chartContainer} style={{ flex: 1 }}>
+                  {chartBars.map((bar, i) => (
+                    <div
+                      key={i}
+                      className={styles.chartBar}
+                      style={{
+                        height: chartAnimated ? `${bar.height}%` : "0%",
+                        background: bar.color,
+                        transitionDelay: `${i * 0.08}s`
+                      }}
+                    >
+                      <span className={styles.chartLabel}>{bar.label}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Bottom row: small activity indicators */}
+                <div style={{ display: "flex", gap: "16px", marginTop: "28px" }}>
+                  {[
+                    { label: "API Calls", value: "1.2M", color: "#4f46e5" },
+                    { label: "Latency", value: "42ms", color: "#0891b2" },
+                    { label: "Error Rate", value: "0.02%", color: "#10b981" },
+                  ].map((stat, i) => (
+                    <div key={i} style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: "16px", fontWeight: 800, color: stat.color }}>{stat.value}</div>
+                      <div style={{ fontSize: "9px", fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Brand Trust Loop Marquee */}
         <section style={{ width: "100%", overflow: "hidden", position: "relative", marginBottom: "64px", zIndex: 10 }}>
           <div style={{ textAlign: "center", marginBottom: "16px" }}>
@@ -119,8 +315,46 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ─── Animated Metrics Counters ─── */}
+        <section
+          ref={metricsReveal.ref}
+          className={`${styles.scrollReveal} ${metricsReveal.visible ? styles.scrollRevealVisible : ""}`}
+          style={{ width: "90%", maxWidth: "1200px", marginBottom: "80px", zIndex: 10 }}
+        >
+          <div style={{ textAlign: "center", marginBottom: "40px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-accent)", letterSpacing: "0.15em", textTransform: "uppercase" }}>By The Numbers</span>
+            <div className={styles.gradientLine} style={{ marginTop: "12px" }}></div>
+            <h2 style={{ fontSize: "clamp(24px, 4vw, 32px)", marginTop: "4px" }}>Platform Performance Metrics</h2>
+            <p style={{ fontSize: "14px", color: "var(--color-text-secondary)", maxWidth: "560px", margin: "8px auto 0", lineHeight: "1.5" }}>
+              Real-time analytics powering enterprise growth at scale.
+            </p>
+          </div>
+          <div className={styles.metricsGrid}>
+            <div className={styles.metricCard}>
+              <div className={styles.metricValue}>{projectsCount}+</div>
+              <div className={styles.metricLabel}>Projects Delivered</div>
+            </div>
+            <div className={styles.metricCard}>
+              <div className={styles.metricValue}>{clientsCount}+</div>
+              <div className={styles.metricLabel}>Enterprise Clients</div>
+            </div>
+            <div className={styles.metricCard}>
+              <div className={styles.metricValue}>{uptimeCount}.9%</div>
+              <div className={styles.metricLabel}>System Uptime</div>
+            </div>
+            <div className={styles.metricCard}>
+              <div className={styles.metricValue}>{deploymentsCount}+</div>
+              <div className={styles.metricLabel}>Deployments</div>
+            </div>
+          </div>
+        </section>
+
         {/* Services Overview Grid */}
-        <section style={{ width: "90%", maxWidth: "1200px", marginBottom: "80px", zIndex: 10 }}>
+        <section
+          ref={servicesReveal.ref}
+          className={`${styles.scrollReveal} ${servicesReveal.visible ? styles.scrollRevealVisible : ""}`}
+          style={{ width: "90%", maxWidth: "1200px", marginBottom: "80px", zIndex: 10 }}
+        >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "32px", flexWrap: "wrap", gap: "16px" }}>
             <div>
               <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-accent)", letterSpacing: "0.15em", textTransform: "uppercase" }}>Our Capabilities</span>
@@ -175,9 +409,14 @@ export default function Home() {
         </section>
 
         {/* Why Kalpanaa? Section */}
-        <section style={{ width: "90%", maxWidth: "1200px", marginBottom: "80px", zIndex: 10 }}>
+        <section
+          ref={whyReveal.ref}
+          className={`${styles.scrollReveal} ${whyReveal.visible ? styles.scrollRevealVisible : ""}`}
+          style={{ width: "90%", maxWidth: "1200px", marginBottom: "80px", zIndex: 10 }}
+        >
           <div style={{ textAlign: "center", marginBottom: "40px" }}>
             <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-accent)", letterSpacing: "0.15em", textTransform: "uppercase" }}>Our Advantage</span>
+            <div className={styles.gradientLine} style={{ marginTop: "12px" }}></div>
             <h2 style={{ fontSize: "clamp(24px, 4vw, 32px)", marginTop: "4px" }}>Why Kalpanaa?</h2>
             <p style={{ fontSize: "14px", color: "var(--color-text-secondary)", maxWidth: "560px", margin: "8px auto 0", lineHeight: "1.5" }}>
               We combine mature enterprise engineering guidelines with lightning-fast automation.
@@ -216,7 +455,11 @@ export default function Home() {
         </section>
 
         {/* Products Highlights Section */}
-        <section style={{ width: "90%", maxWidth: "1200px", marginBottom: "80px", zIndex: 10 }}>
+        <section
+          ref={productsReveal.ref}
+          className={`${styles.scrollReveal} ${productsReveal.visible ? styles.scrollRevealVisible : ""}`}
+          style={{ width: "90%", maxWidth: "1200px", marginBottom: "80px", zIndex: 10 }}
+        >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "32px", flexWrap: "wrap", gap: "16px" }}>
             <div>
               <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-accent)", letterSpacing: "0.15em", textTransform: "uppercase" }}>SaaS Solutions</span>
@@ -233,6 +476,19 @@ export default function Home() {
               <p style={{ fontSize: "14px", color: "var(--color-text-secondary)", lineHeight: "1.6", marginBottom: "20px" }}>
                 Our flagship design canvas. Transpile prompts into responsive mockups, editing HTML frameworks and raw styles interactively.
               </p>
+              {/* Mini visual: small area chart */}
+              <div style={{ marginBottom: "16px", background: "rgba(248,250,252,0.6)", borderRadius: "10px", padding: "12px" }}>
+                <svg viewBox="0 0 200 40" width="100%" height="40" style={{ display: "block" }}>
+                  <defs>
+                    <linearGradient id="prodGrad1" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(79,70,229,0.15)" />
+                      <stop offset="100%" stopColor="rgba(79,70,229,0)" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M0,35 Q25,30 50,28 T100,20 T150,12 T200,8" fill="none" stroke="#4f46e5" strokeWidth="1.5" className={styles.sparklinePath} />
+                  <path d="M0,35 Q25,30 50,28 T100,20 T150,12 T200,8 L200,40 L0,40 Z" fill="url(#prodGrad1)" opacity="0.6" />
+                </svg>
+              </div>
               <Link href="/products/interface-builder" className="btn-secondary" style={{ padding: "8px 16px", fontSize: "13px", borderRadius: "8px" }}>
                 Learn More
               </Link>
@@ -243,6 +499,15 @@ export default function Home() {
               <p style={{ fontSize: "14px", color: "var(--color-text-secondary)", lineHeight: "1.6", marginBottom: "20px" }}>
                 Verify compilation errors, adjust grid flex spacing parameters, and refactor clean code instantly using developer assistant loops.
               </p>
+              {/* Mini visual: dot pattern */}
+              <div style={{ marginBottom: "16px", background: "rgba(248,250,252,0.6)", borderRadius: "10px", padding: "12px" }}>
+                <svg viewBox="0 0 200 40" width="100%" height="40" style={{ display: "block" }}>
+                  {[0, 25, 50, 75, 100, 125, 150, 175, 200].map((x, i) => (
+                    <circle key={i} cx={x} cy={35 - i * 3.2} r="3" fill="#4f46e5" opacity={0.3 + i * 0.08} />
+                  ))}
+                  <path d="M0,35 C25,33 50,28 75,25 S125,16 150,12 S200,5 200,5" fill="none" stroke="#0891b2" strokeWidth="1.5" strokeDasharray="4 4" />
+                </svg>
+              </div>
               <Link href="/products/code-engine" className="btn-secondary" style={{ padding: "8px 16px", fontSize: "13px", borderRadius: "8px" }}>
                 Learn More
               </Link>
@@ -253,6 +518,18 @@ export default function Home() {
               <p style={{ fontSize: "14px", color: "var(--color-text-secondary)", lineHeight: "1.6", marginBottom: "20px" }}>
                 Synchronize visual workspaces directly with local database tables using secure REST endpoints and automatic SQLite indexing.
               </p>
+              {/* Mini visual: horizontal bars */}
+              <div style={{ marginBottom: "16px", background: "rgba(248,250,252,0.6)", borderRadius: "10px", padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                {[85, 72, 93, 65].map((w, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "8px", color: "var(--color-text-muted)", width: "40px", fontWeight: 600 }}>EP-{i + 1}</span>
+                    <div style={{ flex: 1, height: "6px", background: "rgba(0,0,0,0.04)", borderRadius: "3px", overflow: "hidden" }}>
+                      <div style={{ width: `${w}%`, height: "100%", background: `linear-gradient(90deg, #4f46e5, #0891b2)`, borderRadius: "3px", transition: "width 1.5s cubic-bezier(0.16, 1, 0.3, 1)" }}></div>
+                    </div>
+                    <span style={{ fontSize: "9px", fontWeight: 700, color: "var(--color-primary)", width: "28px", textAlign: "right" }}>{w}%</span>
+                  </div>
+                ))}
+              </div>
               <Link href="/products/sync-api" className="btn-secondary" style={{ padding: "8px 16px", fontSize: "13px", borderRadius: "8px" }}>
                 Learn More
               </Link>
@@ -279,9 +556,14 @@ export default function Home() {
         </section>
 
         {/* FAQ Section */}
-        <section style={{ width: "90%", maxWidth: "800px", marginBottom: "80px", zIndex: 10 }}>
+        <section
+          ref={faqReveal.ref}
+          className={`${styles.scrollReveal} ${faqReveal.visible ? styles.scrollRevealVisible : ""}`}
+          style={{ width: "90%", maxWidth: "800px", marginBottom: "80px", zIndex: 10 }}
+        >
           <div style={{ textAlign: "center", marginBottom: "40px" }}>
             <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-accent)", letterSpacing: "0.15em", textTransform: "uppercase" }}>Got Questions?</span>
+            <div className={styles.gradientLine} style={{ marginTop: "12px" }}></div>
             <h2 style={{ fontSize: "clamp(24px, 4vw, 32px)", marginTop: "4px" }}>Frequently Asked Questions</h2>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -291,7 +573,7 @@ export default function Home() {
                 <div key={idx} className="glass-container" style={{ padding: "20px 24px", borderRadius: "12px", cursor: "pointer" }} onClick={() => setActiveFaq(isOpen ? null : idx)}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <h4 style={{ fontSize: "15px", fontWeight: 650, color: "var(--color-text-primary)" }}>{faq.q}</h4>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease" }}><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease", flexShrink: 0 }}><polyline points="6 9 12 15 18 9"></polyline></svg>
                   </div>
                   <div style={{ maxHeight: isOpen ? "200px" : "0", opacity: isOpen ? 1 : 0, overflow: "hidden", transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)", marginTop: isOpen ? "12px" : "0" }}>
                     <p style={{ fontSize: "13.5px", color: "var(--color-text-secondary)", lineHeight: "1.6" }}>{faq.a}</p>
@@ -302,7 +584,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Call to Action Section (Replaces Bottom Form) */}
+        {/* Call to Action Section */}
         <section style={{ width: "90%", maxWidth: "800px", marginBottom: "60px", zIndex: 10 }} className="animate-fade-in">
           <div className="glass-container" style={{ padding: "48px 40px", textAlign: "center" }}>
             <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-accent)", letterSpacing: "0.15em", textTransform: "uppercase" }}>Get Started</span>
