@@ -364,10 +364,10 @@
   font-size: 12px;
 }
 
-/* Mobile Responsive Adjustments */
-@media (max-width: 768px) {
+/* Mobile & Tablet Responsive Adjustments */
+@media (max-width: 1024px) {
   .navLinks {
-    display: none; /* Hide desktop nav links */
+    display: none; /* Hide desktop nav links on tablet and mobile */
   }
 
   .header {
@@ -458,12 +458,15 @@
   transform-origin: center;
 }
 
+@media (max-width: 1024px) {
+  .mobileMenuToggle {
+    display: flex; /* Show toggle button on tablet and mobile */
+  }
+}
+
 @media (max-width: 768px) {
   .headerContactBtn {
     display: none !important;
-  }
-  .mobileMenuToggle {
-    display: flex; /* Show toggle button on mobile */
   }
 }
 
