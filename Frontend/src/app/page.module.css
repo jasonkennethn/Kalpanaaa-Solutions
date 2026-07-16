@@ -934,7 +934,7 @@
   max-width: 260px;
   line-height: 1.45;
   pointer-events: none;
-  animation: tooltipLifecycle 5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: tooltipLifecycle 10s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: opacity, transform;
 }
 

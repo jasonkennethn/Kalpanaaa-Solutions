@@ -83,7 +83,7 @@ export default function Home() {
         setShowTooltip(true);
         sessionStorage.setItem("kalpanaaa_tooltip_seen", "1");
       }, 1200);
-      const hide = setTimeout(() => setShowTooltip(false), 6200);
+      const hide = setTimeout(() => setShowTooltip(false), 11200);
       return () => { clearTimeout(delay); clearTimeout(hide); };
     }
   }, []);
